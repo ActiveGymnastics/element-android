@@ -33,14 +33,11 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AlertDialog
 import com.airbnb.mvrx.activityViewModel
 import im.vector.app.R
-import im.vector.app.core.extensions.appendParamToUrl
 import im.vector.app.core.utils.AssetReader
 import im.vector.app.databinding.FragmentLoginWebBinding
 import im.vector.app.features.signout.soft.SoftLogoutAction
 import im.vector.app.features.signout.soft.SoftLogoutViewModel
 
-import org.matrix.android.sdk.api.auth.LOGIN_FALLBACK_PATH
-import org.matrix.android.sdk.api.auth.REGISTER_FALLBACK_PATH
 import org.matrix.android.sdk.api.auth.data.Credentials
 import org.matrix.android.sdk.internal.di.MoshiProvider
 import timber.log.Timber
@@ -119,19 +116,7 @@ class LoginWebFragment @Inject constructor(
     }
 
     private fun launchWebView(state: LoginViewState) {
-        val url = buildString {
-            append(state.homeServerUrl?.trim { it == '/' })
-            if (state.signMode == SignMode.SignIn) {
-                append(LOGIN_FALLBACK_PATH)
-                state.deviceId?.takeIf { it.isNotBlank() }?.let {
-                    // But https://github.com/matrix-org/synapse/issues/5755
-                    appendParamToUrl("device_id", it)
-                }
-            } else {
-                // MODE_REGISTER
-                append(REGISTER_FALLBACK_PATH)
-            }
-        }
+        val url = loginViewModel.getFallbackUrl(state.signMode == SignMode.SignIn, state.deviceId) ?: return
 
         views.loginWebWebView.loadUrl(url)
 
@@ -170,18 +155,15 @@ class LoginWebFragment @Inject constructor(
                 // avoid infinite onPageFinished call
                 if (url.startsWith("http")) {
                     // Generic method to make a bridge between JS and the UIWebView
-                    val mxcJavascriptSendObjectMessage = assetReader.readAssetFile("sendObject.js")
-                    view.loadUrl(mxcJavascriptSendObjectMessage)
+                    assetReader.readAssetFile("sendObject.js")?.let { view.loadUrl(it) }
 
                     if (state.signMode == SignMode.SignIn) {
                         // The function the fallback page calls when the login is complete
-                        val mxcJavascriptOnLogin = assetReader.readAssetFile("onLogin.js")
-                        view.loadUrl(mxcJavascriptOnLogin)
+                        assetReader.readAssetFile("onLogin.js")?.let { view.loadUrl(it) }
                     } else {
                         // MODE_REGISTER
                         // The function the fallback page calls when the registration is complete
-                        val mxcJavascriptOnRegistered = assetReader.readAssetFile("onRegistered.js")
-                        view.loadUrl(mxcJavascriptOnRegistered)
+                        assetReader.readAssetFile("onRegistered.js")?.let { view.loadUrl(it) }
                     }
                 }
             }
